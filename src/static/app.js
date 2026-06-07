@@ -19,13 +19,37 @@ document.addEventListener("DOMContentLoaded", () => {
         activityCard.className = "activity-card";
 
         const spotsLeft = details.max_participants - details.participants.length;
+        
+        // Create participants list HTML
+        let participantsHTML = '<div class="participants-section"><strong>登録者:</strong>';
+        if (details.participants.length > 0) {
+          participantsHTML += '<ul class="participants-list">';
+          details.participants.forEach(participant => {
+            participantsHTML += `<li><div class="participant-item"><span>${participant}</span><button class="delete-btn" data-activity="${name}" data-email="${participant}" title="登録解除">✕</button></div></li>`;
+          });
+          participantsHTML += '</ul>';
+        } else {
+          participantsHTML += '<p class="no-participants">まだ登録者がいません</p>';
+        }
+        participantsHTML += '</div>';
 
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
-          <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <p><strong>スケジュール:</strong> ${details.schedule}</p>
+          <p><strong>空き枠:</strong> ${spotsLeft}人分</p>
+          ${participantsHTML}
         `;
+
+        // Add delete button event listeners
+        activityCard.querySelectorAll('.delete-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const activityName = btn.getAttribute('data-activity');
+            const email = btn.getAttribute('data-email');
+            await cancelSignup(activityName, email);
+          });
+        });
 
         activitiesList.appendChild(activityCard);
 
@@ -38,6 +62,44 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
       console.error("Error fetching activities:", error);
+    }
+  }
+
+  // Function to cancel signup
+  async function cancelSignup(activityName, email) {
+    try {
+      const response = await fetch(
+        `/activities/${encodeURIComponent(activityName)}/signup?email=${encodeURIComponent(email)}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const result = await response.json();
+
+      if (response.ok) {
+        messageDiv.textContent = result.message;
+        messageDiv.className = "success";
+        // Refresh activities
+        setTimeout(() => {
+          fetchActivities();
+        }, 500);
+      } else {
+        messageDiv.textContent = result.detail || "登録解除に失敗しました";
+        messageDiv.className = "error";
+      }
+
+      messageDiv.classList.remove("hidden");
+
+      // Hide message after 5 seconds
+      setTimeout(() => {
+        messageDiv.classList.add("hidden");
+      }, 5000);
+    } catch (error) {
+      messageDiv.textContent = "登録解除に失敗しました。もう一度お試しください。";
+      messageDiv.className = "error";
+      messageDiv.classList.remove("hidden");
+      console.error("Error canceling signup:", error);
     }
   }
 
@@ -62,8 +124,12 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // Refresh activities to show the new participant
+        setTimeout(() => {
+          fetchActivities();
+        }, 1000);
       } else {
-        messageDiv.textContent = result.detail || "An error occurred";
+        messageDiv.textContent = result.detail || "エラーが発生しました";
         messageDiv.className = "error";
       }
 
@@ -74,7 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.classList.add("hidden");
       }, 5000);
     } catch (error) {
-      messageDiv.textContent = "Failed to sign up. Please try again.";
+      messageDiv.textContent = "登録に失敗しました。もう一度お試しください。";
       messageDiv.className = "error";
       messageDiv.classList.remove("hidden");
       console.error("Error signing up:", error);
